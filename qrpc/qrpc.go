@@ -1,4 +1,4 @@
-package grpc
+package qrpc
 
 import (
 	"server-email/model"
