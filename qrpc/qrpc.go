@@ -5,11 +5,21 @@ import (
 	"gitlab.com/jeosgram-go/server-email/model"
 )
 
-type Client2 struct {
+type Client struct {
 	*qrpc.Client
 }
 
-func (c *Client2) SendEmail(e *model.Email) (msgID string, err error) {
+func NewClient(addr string) (*Client, error) {
+	clientTmp, err := qrpc.NewClient(addr)
+	if err != nil {
+		return nil, err
+	}
+	return &Client{
+		Client: clientTmp,
+	}, nil
+}
+
+func (c *Client) SendEmail(e *model.Email) (msgID string, err error) {
 	var ret string
 	err = c.Send(e, &ret)
 	if err != nil {
