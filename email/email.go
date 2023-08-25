@@ -25,7 +25,7 @@ func checkMail(s string) bool {
 }
 
 func generateMessageID() string {
-	return fmt.Sprintf("<%s@example.io>", uuid.NewString())
+	return fmt.Sprintf("<%s@jeosgram.io>", uuid.NewString())
 }
 
 func newEmail(e *model.Email) (*email.Email, string) {
