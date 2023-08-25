@@ -1,9 +1,8 @@
 package qrpc
 
 import (
-	"server-email/model"
-
 	"gitlab.com/jeosgram-go/qrpc"
+	"gitlab.com/jeosgram-go/server-email/model"
 )
 
 type Client2 struct {

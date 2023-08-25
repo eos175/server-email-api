@@ -6,13 +6,13 @@ import (
 	"net"
 	"net/smtp"
 	"net/textproto"
-	"server-email/model"
 	"strings"
 	"time"
 
 	"github.com/eos175/email"
 	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
+	"gitlab.com/jeosgram-go/server-email/model"
 )
 
 var (

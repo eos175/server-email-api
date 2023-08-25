@@ -1,4 +1,4 @@
-module server-email
+module gitlab.com/jeosgram-go/server-email
 
 go 1.20
 

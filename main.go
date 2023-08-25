@@ -4,9 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"server-email/model"
-
-	"server-email/email"
 
 	"github.com/gofiber/fiber/v2"
 	fiberlog "github.com/gofiber/fiber/v2/middleware/logger"
@@ -15,6 +12,8 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"gitlab.com/jeosgram-go/qrpc"
+	"gitlab.com/jeosgram-go/server-email/email"
+	"gitlab.com/jeosgram-go/server-email/model"
 )
 
 /*
