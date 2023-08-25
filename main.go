@@ -3,22 +3,18 @@ package main
 import (
 	"errors"
 	"fmt"
-	"net"
-	"net/smtp"
-	"net/textproto"
 	"os"
-	"strings"
-	"time"
+	"server-email/model"
 
-	"github.com/eos175/email"
+	"server-email/email"
 
 	"github.com/gofiber/fiber/v2"
 	fiberlog "github.com/gofiber/fiber/v2/middleware/logger"
 	"github.com/gofiber/fiber/v2/middleware/recover"
 	"github.com/gofiber/fiber/v2/middleware/requestid"
-	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
+	"gitlab.com/jeosgram-go/qrpc"
 )
 
 /*
@@ -42,31 +38,9 @@ const (
 	TB
 )
 
-type Email struct {
-	From        string   `json:"from"`
-	To          []string `json:"to"`
-	ReplyTo     []string `json:"replyTo"`
-	Bcc         []string `json:"bcc"`
-	Cc          []string `json:"cc"`
-	Subject     string   `json:"subject"`
-	Text        string   `json:"text"`        // Plaintext message (optional)
-	Html        string   `json:"html"`        // Html message (optional)
-	Attachments []string `json:"attachments"` // file-ID (optional)
-}
-
 var (
 	ErrBigFile = errors.New("big file")
-	ErrMail    = errors.New("invalid mail")
 )
-
-func checkMail(s string) bool {
-	// a@b.io
-	return len(s) > 5 && strings.IndexByte(s, '@') != -1
-}
-
-func generateMessageID() string {
-	return fmt.Sprintf("<%s@example.io>", uuid.NewString())
-}
 
 // ========================================================
 
@@ -74,7 +48,22 @@ func main() {
 
 	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stdout})
 
-	sender := Queue("smtp.example.io:587", "user@example.io", "secret++")
+	sender := email.Queue("smtp.jeosgram.io:587", "user@jeosgram.io", "secret0")
+
+	go func() {
+		app := qrpc.NewServer()
+
+		qrpc.RegisterRpcFuncResponse(app, func(c *qrpc.Context, data model.Email) error {
+			msgID, err := sender(&data)
+			if err != nil {
+				return c.SendError(500, "ERROR_SENDING_EMAIL")
+			}
+
+			return c.SendResponse(msgID)
+		})
+
+		log.Error().Err(app.Listen(":8080")).Msg("error server")
+	}()
 
 	// https://docs.gofiber.io/guide/error-handling
 	app := fiber.New(fiber.Config{
@@ -101,27 +90,17 @@ func main() {
 
 	api := app.Group("/v1")
 	api.Post("/smtp/email", func(c *fiber.Ctx) error {
-		var e Email
+		var e model.Email
 
 		if err := c.BodyParser(&e); err != nil {
 			return err
 		}
 
-		if len(e.To) == 0 {
-			return ErrMail
+		msgID, err := sender(&e)
+		if err != nil {
+			return err
 		}
 
-		if !checkMail(e.From) {
-			return ErrMail
-		}
-
-		for _, v := range e.To {
-			if !checkMail(v) {
-				return ErrMail
-			}
-		}
-
-		msgID := sender(&e)
 		return c.JSON(fiber.Map{"ok": true, "message-id": msgID})
 	})
 
@@ -145,61 +124,4 @@ func main() {
 	})
 
 	log.Fatal().Err(app.Listen(":8080")).Send()
-}
-
-// ========================================================
-
-func newEmail(e *Email) (*email.Email, string) {
-	msgID := generateMessageID()
-	return &email.Email{
-		ReplyTo: e.ReplyTo,
-		From:    e.From,
-		To:      e.To,
-		Bcc:     e.Bcc,
-		Cc:      e.Cc,
-		Subject: e.Subject,
-		Text:    []byte(e.Text),
-		HTML:    []byte(e.Html),
-		Headers: textproto.MIMEHeader{"Message-ID": []string{msgID}},
-	}, msgID
-}
-
-func Queue(addr, user, pass string) func(e *Email) (emailID string) {
-	const (
-		timeout    = 8 * time.Second
-		maxRetries = 2
-		maxConn    = 4
-	)
-
-	host, _, _ := net.SplitHostPort(addr)
-	pool, err := email.NewPool(
-		addr,
-		maxConn,
-		smtp.PlainAuth("", user, pass, host),
-	)
-	if err != nil {
-		log.Fatal().Err(err).Send()
-	}
-
-	ch := make(chan *email.Email, 1)
-	for i := 0; i < maxConn; i++ {
-		go func(pid int) {
-			for e := range ch {
-				for i := 0; i < maxRetries; i++ {
-					log.Info().Int("pid", pid).Msg("send mail")
-					err := pool.Send(e, timeout)
-					if err == nil {
-						break
-					}
-					log.Error().Int("pid", pid).Int("retry", i).Err(err).Msg("no send mail")
-				}
-			}
-		}(i + 1)
-	}
-
-	return func(e *Email) string {
-		email, msgID := newEmail(e)
-		ch <- email
-		return msgID
-	}
 }
